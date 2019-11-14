@@ -6,6 +6,7 @@ true: -traverse, debug, use_menhir
 <isail.{byte,native}>: package(zarith), package(linenoise), package(linksem), package(lem), package(omd), package(base64), package(yojson), use_pprint
 
 <isail.ml>: package(linenoise), package(yojson)
+<jib/c_backend2.ml>: package(yojson)
 <elf_loader.ml>: package(linksem)
 <latex.ml>: package(omd)
 <**/*.m{l,li}>: package(lem), package(base64)

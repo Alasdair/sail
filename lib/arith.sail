@@ -21,11 +21,12 @@ val sub_int = {ocaml: "sub_int", interpreter: "sub_int", lem: "integerMinus", c:
 
 overload operator - = {sub_atom, sub_int}
 
-val sub_nat = {
-  ocaml: "(fun (x,y) -> let n = sub_int (x,y) in if Big_int.less_equal n Big_int.zero then Big_int.zero else n)",
-  lem: "integerMinus",
-  _: "sub_nat"
-} : (nat, nat) -> nat
+val sub_nat : (nat, nat) -> nat
+
+function sub_nat(x, y) = {
+  let z = sub_int(x, y);
+  if z < 0 then 0 else z
+}
 
 // ***** Negation *****
 

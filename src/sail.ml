@@ -202,6 +202,9 @@ let options = Arg.align ([
   ( "-elf",
     Arg.String (fun elf -> opt_process_elf := Some elf),
     " process an ELF file so that it can be executed by compiled C code");
+  ( "-c2_config",
+    Arg.String (fun file -> C_backend2.read_json_config file),
+    "<file> read a JSON configuration file for C generation");
   ( "-O",
     Arg.Tuple [Arg.Set C_backend.optimize_primops;
                Arg.Set C_backend.optimize_hoist_allocations;
@@ -389,11 +392,6 @@ let usage_msg =
   version
   ^ "\nusage: sail <options> <file1.sail> ... <fileN.sail>\n"
 
-let _ =
-  Arg.parse options
-    (fun s ->
-      opt_file_arguments := (!opt_file_arguments) @ [s])
-    usage_msg
 
 let prover_regstate tgt ast type_envs =
   match tgt with
@@ -532,6 +530,10 @@ let feature_check () =
        exit 2
 
 let main () =
+  Arg.parse options
+    (fun s ->
+      opt_file_arguments := (!opt_file_arguments) @ [s])
+    usage_msg;
   feature_check ();
   if !opt_print_version then
     print_endline version
