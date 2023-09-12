@@ -71,7 +71,11 @@ open Ast
 open Ast_defs
 open Ast_util
 
+(** {2 Contexts} *)
+
 type ctx
+
+val root_ctx : ctx
 
 val merge_ctx : Parse_ast.l -> ctx -> ctx -> ctx
 
@@ -111,8 +115,18 @@ val undefined_builtin_val_specs : uannot def list
 
 (** {2 Desugar and process AST } *)
 
+val get_imports : Parse_ast.def list -> Parse_ast.import list
+
+val get_parameters : Parse_ast.def list -> Parse_ast.parameter list
+
+val get_implements : Parse_ast.def list -> Parse_ast.mod_id option
+
 val generate_undefineds : IdSet.t -> uannot def list -> uannot def list
 val generate_enum_functions : IdSet.t -> uannot def list -> uannot def list
+
+val to_defs : ctx -> Parse_ast.def list -> uannot def list * ctx
+
+val to_idefs : ctx -> Parse_ast.idef list -> uannot idef list * ctx
 
 (** If the generate flag is false, then we won't generate any
    auxilliary definitions, like the initialize_registers function *)
@@ -136,5 +150,7 @@ val constraint_of_string : string -> n_constraint
 
    @param ?loc If we get an error reading the file, report the error at this location *)
 val parse_file : ?loc:Parse_ast.l -> string -> Lexer.comment list * Parse_ast.def list
+
+val parse_interface_file : ?loc:Parse_ast.l -> string -> Lexer.comment list * Parse_ast.idef list
 
 val parse_file_from_string : filename:string -> contents:string -> Lexer.comment list * Parse_ast.def list

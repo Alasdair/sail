@@ -127,6 +127,10 @@ let print_err_internal p_l m1 m2 =
     | Pos p -> format_message (Location ("", None, Parse_ast.Range (p, p), Line (fix_endline m2))) err_formatter
   end
 
+let shrink_loc keyword = function
+  | Parse_ast.Range (n, _) -> Lexing.(Parse_ast.Range (n, { n with pos_cnum = n.pos_cnum + String.length keyword }))
+  | l -> l
+
 let loc_to_string l =
   let open Error_format in
   let b = Buffer.create 160 in

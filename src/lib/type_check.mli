@@ -340,6 +340,7 @@ val strip_funcl : tannot funcl -> uannot funcl
 val strip_register : tannot dec_spec -> uannot dec_spec
 val strip_typedef : tannot type_def -> uannot type_def
 val strip_def : tannot def -> uannot def
+val strip_idef : tannot idef -> uannot idef
 val strip_ast : tannot ast -> uannot ast
 
 (** Remove location information from types for comparison purposes *)
@@ -533,6 +534,8 @@ Some invariants that will hold of a fully checked AST are:
 val check : Env.t -> uannot ast -> tannot ast * Env.t
 
 val check_defs : Env.t -> uannot def list -> tannot def list * Env.t
+
+val check_interface : Env.t -> uannot idef list -> Env.t
 
 (** The same as [check], but exposes the intermediate type-checking
    environments so we don't have to always re-check the entire AST *)

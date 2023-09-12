@@ -74,10 +74,24 @@
 
 open Ast
 
+val diff_id : id -> id -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_kind : kind -> kind -> (unit, Parse_ast.l * Parse_ast.l) result
+
 val diff_typ : typ -> typ -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_typquant : typquant -> typquant -> (unit, Parse_ast.l * Parse_ast.l) result
 
 val diff_pat : 'a pat -> 'b pat -> (unit, Parse_ast.l * Parse_ast.l) result
 
 val diff_exp : 'a exp -> 'b exp -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_letbind : 'a letbind -> 'b letbind -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_val_spec : 'a val_spec -> 'b val_spec -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_type_def : 'a type_def -> 'b type_def -> (unit, Parse_ast.l * Parse_ast.l) result
+
+val diff_register : 'a dec_spec -> 'b dec_spec -> (unit, Parse_ast.l * Parse_ast.l) result
 
 val diff_def : 'a def -> 'b def -> (unit, Parse_ast.l * Parse_ast.l) result

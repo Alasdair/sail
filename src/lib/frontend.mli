@@ -85,3 +85,25 @@ val load_files :
 
 val initial_rewrite :
   Effects.side_effect_info -> Type_check.Env.t -> Type_check.tannot ast -> Type_check.tannot ast * Type_check.Env.t
+
+val mk_mod_id : ?loc:Parse_ast.l -> string list -> string -> Parse_ast.mod_id
+
+type mod_inst
+
+val mk_mod_inst : Parse_ast.mod_id -> mod_inst
+
+type spec
+type interface
+type checked_module
+
+val empty_spec : spec
+
+val load_module_from_file :
+  ?depth:int ->
+  ?target:Target.target ->
+  sail_dir:string ->
+  options:(Arg.key * Arg.spec * Arg.doc) list ->
+  mod_inst ->
+  string ->
+  spec ->
+  interface * checked_module * spec

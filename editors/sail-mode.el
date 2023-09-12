@@ -32,7 +32,7 @@
     "overload" "cast" "sizeof" "constant" "constraint" "default" "assert" "newtype" "from"
     "pure" "monadic" "infixl" "infixr" "infix" "scattered" "end" "try" "catch" "and" "to"
     "throw" "clause" "as" "repeat" "until" "while" "do" "foreach" "bitfield"
-    "mapping" "where" "with" "implicit" "instantiation" "impl"))
+    "mapping" "where" "with" "implicit" "instantiation" "impl" "implements" "module" "parameter" "import"))
 
 (defconst sail2-kinds
   '("Int" "Type" "Order" "Bool" "inc" "dec"
@@ -205,5 +205,13 @@
   (easy-menu-add sail-mode-menu))
 
 (provide 'sail2-mode)
+
+(with-eval-after-load 'lsp-mode
+  (add-to-list 'lsp-language-id-configuration '(sail2-mode . "sail"))
+
+  (lsp-register-client
+   (make-lsp-client :new-connection (lsp-stdio-connection "sail_lsp")
+                    :activation-fn (lsp-activate-on "sail")
+                    :server-id 'sail-lsp)))
 
 ;;; sail-mode.el ends here

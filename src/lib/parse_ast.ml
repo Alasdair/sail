@@ -69,8 +69,6 @@
 
 module Big_int = Nat_big_num
 
-type text = string
-
 type l =
   | Unknown
   | Unique of int * l
@@ -83,9 +81,6 @@ type 'a annot = l * 'a
 type extern = { pure : bool; bindings : (string * string) list }
 
 exception Parse_error_locn of l * string
-
-type x = text (* identifier *)
-type ix = text (* infix identifier *)
 
 type kind_aux =
   | (* base kind *)
@@ -114,16 +109,21 @@ type base_effect_aux =
   | BE_config
 
 type kid_aux = (* identifiers with kind, ticked to differentiate from program variables *)
-  | Var of x
+  | Var of string
 
 type id_aux = (* Identifier *)
-  | Id of x | Operator of x (* remove infix status *)
+  | Id of string | Operator of string (* remove infix status *)
+
+type mod_id_aux = (* Module identifier *)
+  | Mod_id of string list * string
 
 type base_effect = BE_aux of base_effect_aux * l
 
 type kid = Kid_aux of kid_aux * l
 
 type id = Id_aux of id_aux * l
+
+type mod_id = Mod_id_aux of mod_id_aux * l
 
 type lit_aux =
   | (* Literal constant *)
@@ -427,6 +427,18 @@ type prec = Infix | InfixL | InfixR
 
 type fixity_token = prec * Big_int.num * string
 
+type mod_exp_aux = ME_app of mod_id * (mod_id * mod_exp) list | ME_id of mod_id
+
+and mod_exp = ME_aux of mod_exp_aux * l
+
+type import_aux = Import of mod_exp
+
+type import = Import_aux of import_aux * l
+
+type parameter_aux = Parameter of mod_id * mod_id
+
+type parameter = Parameter_aux of parameter_aux * l
+
 type def_aux =
   (* Top-level definition *)
   | DEF_type of type_def (* type definition *)
@@ -448,8 +460,25 @@ type def_aux =
   | DEF_attribute of string * string * def
   | DEF_doc of string * def
   | DEF_internal_mutrec of fundef list
+  | DEF_import of import
+  | DEF_parameter of parameter
+  | DEF_implements of mod_id
+  | DEF_module of mod_id * def list
+  | DEF_interface of mod_id * idef list
 
 and def = DEF_aux of def_aux * l
+
+and idef_aux =
+  (* top-level definition in signature *)
+  | IDEF_def of def_aux (* shared definition that also appears in non-signatures *)
+  | IDEF_let of pat (* abstract let binding *)
+  | IDEF_type of id * typquant * kind (* abstract type *)
+  | IDEF_constraint of atyp (* top-level constraint *)
+  | IDEF_val of id
+  | IDEF_attribute of string * string * idef
+  | IDEF_doc of string * idef
+
+and idef = IDEF_aux of idef_aux * l
 
 type lexp_aux =
   (* lvalue expression, can't occur out of the parser *)

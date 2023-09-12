@@ -94,3 +94,5 @@ val string_of_type_error : Type_check.type_error -> string
 val check_defs : Type_check.Env.t -> uannot Ast.def list -> Type_check.tannot Ast.def list * Type_check.Env.t
 
 val check : Type_check.Env.t -> uannot Ast_defs.ast -> Type_check.tannot Ast_defs.ast * Type_check.Env.t
+
+val check_interface : Type_check.Env.t -> uannot Ast.idef list -> Type_check.Env.t

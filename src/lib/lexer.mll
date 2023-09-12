@@ -149,6 +149,7 @@ let kw_table =
      ("try",                     (fun _ -> Try));
      ("catch",                   (fun _ -> Catch));
      ("if",                      (fun _ -> If_));
+     ("implements",              (fun _ -> Implements));
      ("in",			 (fun _ -> In));
      ("inc",                     (fun _ -> Inc));
      ("let",                     (fun _ -> Let_));
@@ -178,8 +179,9 @@ let kw_table =
      ("outcome",                 (fun _ -> Outcome));
      ("instantiation",           (fun _ -> Instantiation));
      ("impl",                    (fun _ -> Impl));
-     ("import",                  (fun p -> raise (Reporting.err_lex p "import is a reserved keyword")));
-     ("module",                  (fun p -> raise (Reporting.err_lex p "module is a reserved keyword")));
+     ("import",                  (fun _ -> Import));
+     ("parameter",               (fun _ -> Parameter));
+     ("module",                  (fun _ -> Module));
      ("repeat",                  (fun _ -> Repeat));
      ("until",                   (fun _ -> Until));
      ("while",                   (fun _ -> While));

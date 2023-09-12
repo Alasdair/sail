@@ -69,5 +69,32 @@ val clear_symbols : unit -> unit
 val have_symbol : string -> bool
 val add_symbol : string -> unit
 
-val preprocess :
-  string -> string option -> (Arg.key * Arg.spec * Arg.doc) list -> Parse_ast.def list -> Parse_ast.def list
+module type PRAGMA = sig
+  type def
+
+  val destruct_pragma : def -> (string * string * Parse_ast.l) option
+
+  val mk_pragma : string -> string -> Parse_ast.l -> def
+
+  val recur : (def list -> def list) -> def -> def
+
+  val parse_file : ?loc:Parse_ast.l -> string -> Lexer.comment list * def list
+end
+
+module type S = sig
+  type def
+
+  val preprocess : string -> string option -> (Arg.key * Arg.spec * Arg.doc) list -> def list -> def list
+end
+
+module Make (P : PRAGMA) : sig
+  include S with type def = P.def
+end
+
+module Defs : sig
+  include S with type def = Parse_ast.def
+end
+
+module Interface_defs : sig
+  include S with type def = Parse_ast.idef
+end

@@ -1129,6 +1129,51 @@ let rec to_ast_def doc attrs ctx (P.DEF_aux (def, l)) : uannot def list ctx_out 
       ([DEF_aux (DEF_measure (to_ast_id ctx id, to_ast_pat ctx pat, to_ast_exp ctx exp), annot)], ctx)
   | P.DEF_loop_measures (id, measures) ->
       ([DEF_aux (DEF_loop_measures (to_ast_id ctx id, List.map (to_ast_loop_measure ctx) measures), annot)], ctx)
+  | P.DEF_import _ | P.DEF_parameter _ | P.DEF_implements _ -> ([], ctx)
+
+let rec to_idef doc attrs ctx (P.IDEF_aux (def, l)) : uannot idef list ctx_out =
+  let mk_annot () =
+    let annot = List.fold_left (fun a (attr, arg, l) -> add_def_attribute l attr arg a) (mk_def_annot l) attrs in
+    { annot with doc_comment = doc }
+  in
+  match def with
+  | P.IDEF_attribute (attr, arg, idef) -> to_idef doc ((attr, arg, l) :: attrs) ctx idef
+  | P.IDEF_doc (doc_comment, idef) -> begin
+      match doc with
+      | Some _ -> raise (Reporting.err_general l "Toplevel definition has multiple documentation comments")
+      | None -> to_idef (Some doc_comment) attrs ctx idef
+    end
+  | P.IDEF_def aux ->
+      let defs, ctx = to_ast_def doc attrs ctx (P.DEF_aux (aux, l)) in
+      (List.map (function DEF_aux (aux, annot) -> IDEF_aux (IDEF_def aux, annot)) defs, ctx)
+  | P.IDEF_let pat ->
+      let pat = to_ast_pat ctx pat in
+      ([IDEF_aux (IDEF_let pat, mk_annot ())], ctx)
+  | P.IDEF_type (id, typq, kind) ->
+      let id = to_ast_reserved_type_id ctx id in
+      let typq, _ = to_ast_typquant ctx typq in
+      begin
+        match to_ast_kind kind with
+        | Some kind -> ([IDEF_aux (IDEF_type (id, typq, kind), mk_annot ())], add_constructor id typq ctx)
+        | None -> ([], ctx)
+      end
+  | P.IDEF_constraint nc ->
+      let nc = to_ast_constraint ctx nc in
+      ([IDEF_aux (IDEF_constraint nc, mk_annot ())], ctx)
+  | P.IDEF_val id ->
+      let id = to_ast_id ctx id in
+      ([IDEF_aux (IDEF_val id, mk_annot ())], ctx)
+
+let to_idefs ctx idefs =
+  let idefs, ctx =
+    List.fold_left
+      (fun (idefs, ctx) idef ->
+        let idef, ctx = to_idef None [] ctx idef in
+        (idef @ idefs, ctx)
+      )
+      ([], ctx) idefs
+  in
+  (List.rev idefs, ctx)
 
 let rec remove_mutrec = function
   | [] -> []
@@ -1136,33 +1181,53 @@ let rec remove_mutrec = function
       List.map (fun (P.FD_aux (_, l) as fdef) -> P.DEF_aux (P.DEF_fundef fdef, l)) fundefs @ remove_mutrec defs
   | def :: defs -> def :: remove_mutrec defs
 
-let to_ast ctx (P.Defs files) =
-  let to_ast_defs ctx (_, defs) =
-    let defs = remove_mutrec defs in
-    let defs, ctx =
-      List.fold_left
-        (fun (defs, ctx) def ->
-          let def, ctx = to_ast_def None [] ctx def in
-          (def @ defs, ctx)
-        )
-        ([], ctx) defs
-    in
-    (List.rev defs, ctx)
+let to_defs ctx defs =
+  let defs = remove_mutrec defs in
+  let defs, ctx =
+    List.fold_left
+      (fun (defs, ctx) def ->
+        let def, ctx = to_ast_def None [] ctx def in
+        (def @ defs, ctx)
+      )
+      ([], ctx) defs
   in
+  (List.rev defs, ctx)
+
+let to_ast ctx (P.Defs files) =
   let wrap_file file defs =
     [mk_def (DEF_pragma ("file_start", file, P.Unknown))] @ defs @ [mk_def (DEF_pragma ("file_end", file, P.Unknown))]
   in
   let defs, ctx =
     List.fold_left
       (fun (defs, ctx) file ->
-        let defs', ctx = to_ast_defs ctx file in
+        let defs', ctx = to_defs ctx (snd file) in
         (defs @ wrap_file (fst file) defs', ctx)
       )
       ([], ctx) files
   in
   ({ defs; comments = [] }, ctx)
 
-let initial_ctx =
+let get_imports defs =
+  let import_info = function P.DEF_aux (P.DEF_import i, _) -> Some i | _ -> None in
+  List.filter_map import_info defs
+
+let get_implements defs =
+  let implements_info = function P.DEF_aux (P.DEF_implements i, l) -> Some (i, l) | _ -> None in
+  match List.filter_map implements_info defs with
+  | [] -> None
+  | [(i, _)] -> Some i
+  | (_, l1) :: (_, l2) :: _ ->
+      raise
+        (Reporting.err_general
+           (Hint ("Previous implements statement here", l1, l2))
+           "Duplicate implements statement in module"
+        )
+
+let get_parameters defs =
+  let parameter_info (P.DEF_aux (aux, _)) = match aux with P.DEF_parameter p -> Some p | _ -> None in
+  List.filter_map parameter_info defs
+
+let root_ctx =
   {
     type_constructors =
       List.fold_left
@@ -1195,27 +1260,27 @@ let initial_ctx =
 let exp_of_string str =
   try
     let exp = Parser.exp_eof Lexer.token (Lexing.from_string str) in
-    to_ast_exp initial_ctx exp
+    to_ast_exp root_ctx exp
   with Parser.Error -> Reporting.unreachable Parse_ast.Unknown __POS__ ("Failed to parse " ^ str)
 
 let typschm_of_string str =
   try
     let typschm = Parser.typschm_eof Lexer.token (Lexing.from_string str) in
-    let typschm, _ = to_ast_typschm initial_ctx typschm in
+    let typschm, _ = to_ast_typschm root_ctx typschm in
     typschm
   with Parser.Error -> Reporting.unreachable Parse_ast.Unknown __POS__ ("Failed to parse " ^ str)
 
 let typ_of_string str =
   try
     let typ = Parser.typ_eof Lexer.token (Lexing.from_string str) in
-    let typ = to_ast_typ initial_ctx typ in
+    let typ = to_ast_typ root_ctx typ in
     typ
   with Parser.Error -> Reporting.unreachable Parse_ast.Unknown __POS__ ("Failed to parse " ^ str)
 
 let constraint_of_string str =
   try
     let atyp = Parser.typ_eof Lexer.token (Lexing.from_string str) in
-    to_ast_constraint initial_ctx atyp
+    to_ast_constraint root_ctx atyp
   with Parser.Error -> Reporting.unreachable Parse_ast.Unknown __POS__ ("Failed to parse " ^ str)
 
 let extern_of_string ?(pure = false) id str =
@@ -1472,7 +1537,7 @@ let generate_enum_functions vs_ids defs =
   in
   gen_enums [] defs
 
-let incremental_ctx = ref initial_ctx
+let incremental_ctx = ref root_ctx
 
 let process_ast ?(generate = true) ast =
   let ast, ctx = to_ast !incremental_ctx ast in
@@ -1514,6 +1579,22 @@ let parse_file ?loc:(l = Parse_ast.Unknown) (f : string) : Lexer.comment list * 
       try
         Lexer.comments := [];
         let defs = Parser.file Lexer.token lexbuf in
+        close_in in_chan;
+        (!Lexer.comments, defs)
+      with Parser.Error ->
+        let pos = Lexing.lexeme_start_p lexbuf in
+        let tok = Lexing.lexeme lexbuf in
+        raise (Reporting.err_syntax pos ("current token: " ^ tok))
+    end
+  with Sys_error err -> raise (Reporting.err_general l err)
+
+let parse_interface_file ?loc:(l = Parse_ast.Unknown) (f : string) : Lexer.comment list * Parse_ast.idef list =
+  try
+    let lexbuf, in_chan = get_lexbuf f in
+    begin
+      try
+        Lexer.comments := [];
+        let defs = Parser.interface_file Lexer.token lexbuf in
         close_in in_chan;
         (!Lexer.comments, defs)
       with Parser.Error ->

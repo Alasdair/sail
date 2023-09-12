@@ -408,6 +408,7 @@ val map_register_annot : ('a annot -> 'b annot) -> 'a dec_spec -> 'b dec_spec
 val map_scattered_annot : ('a annot -> 'b annot) -> 'a scattered_def -> 'b scattered_def
 
 val map_def_annot : ('a annot -> 'b annot) -> 'a def -> 'b def
+val map_idef_annot : ('a annot -> 'b annot) -> 'a idef -> 'b idef
 val map_ast_annot : ('a annot -> 'b annot) -> 'a ast -> 'b ast
 
 (** {1 Extract locations from terms} *)
@@ -507,6 +508,15 @@ val is_fundef : id -> 'a def -> bool
 val rename_valspec : id -> 'a val_spec -> 'a val_spec
 
 val rename_fundef : id -> 'a fundef -> 'a fundef
+
+val typquant_of_type_def : 'a type_def -> typquant * kind
+
+val remove_extern : 'a val_spec -> 'a val_spec
+
+val register_default : 'a dec_spec -> 'a exp option
+val remove_register_default : 'a dec_spec -> 'a dec_spec
+
+val letbind_pat : 'a letbind -> 'a pat
 
 val split_defs : ('a def -> bool) -> 'a def list -> ('a def list * 'a def * 'a def list) option
 

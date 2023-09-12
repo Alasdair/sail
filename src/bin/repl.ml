@@ -521,6 +521,15 @@ let handle_input' istate input =
       | Command (cmd, arg) -> begin
           (* Normal mode commands *)
           match cmd with
+          | ":l" | ":load" ->
+              Preprocess.clear_symbols ();
+              let sail_dir = Reporting.get_sail_dir istate.default_sail_dir in
+              let mod_id = Frontend.mk_mod_id [] (Filename.remove_extension (Filename.basename arg)) in
+              let _ =
+                Frontend.load_module_from_file ~sail_dir ~options:istate.options (Frontend.mk_mod_inst mod_id) arg
+                  Frontend.empty_spec
+              in
+              istate
           | ":b" | ":bind" ->
               let args = Str.split (Str.regexp " +") arg in
               begin
@@ -546,7 +555,7 @@ let handle_input' istate input =
           | ":def" ->
               let ast =
                 Initial_check.ast_of_def_string_with __POS__
-                  (Preprocess.preprocess istate.default_sail_dir None istate.options)
+                  (Preprocess.Defs.preprocess istate.default_sail_dir None istate.options)
                   arg
               in
               let ast, env = Type_check.check istate.env ast in

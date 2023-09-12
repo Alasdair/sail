@@ -133,6 +133,7 @@ type env = {
   mappings : (typquant * typ * typ) Bindings.t;
   typ_vars : (Ast.l * kind_aux) KBindings.t;
   shadow_vars : int KBindings.t;
+  abstract_typs : (typquant * kind) Bindings.t;
   typ_synonyms : (typquant * typ_arg) Bindings.t;
   typ_params : typquant Bindings.t;
   overloads : id list Bindings.t;
@@ -527,6 +528,9 @@ module Env : sig
   val add_typ_var : l -> kinded_id -> t -> t
   val get_ret_typ : t -> typ option
   val add_ret_typ : typ -> t -> t
+  val add_abstract_typ : id -> typquant -> kind -> t -> t
+  val get_abstract_typs : t -> (typquant * kind) Bindings.t
+  val is_abstract_typ : id -> t -> bool
   val add_typ_synonym : id -> typquant -> typ_arg -> t -> t
   val get_typ_synonyms : t -> (typquant * typ_arg) Bindings.t
   val bound_typ_id : t -> id -> bool
@@ -589,6 +593,7 @@ end = struct
       mappings = Bindings.empty;
       typ_vars = KBindings.empty;
       shadow_vars = KBindings.empty;
+      abstract_typs = Bindings.empty;
       typ_synonyms = Bindings.empty;
       typ_params = Bindings.empty;
       overloads = Bindings.empty;
@@ -698,8 +703,8 @@ end = struct
       ]
 
   let bound_typ_id env id =
-    Bindings.mem id env.typ_synonyms || Bindings.mem id env.variants || Bindings.mem id env.records
-    || Bindings.mem id env.enums || Bindings.mem id builtin_typs
+    Bindings.mem id env.abstract_typs || Bindings.mem id env.typ_synonyms || Bindings.mem id env.variants
+    || Bindings.mem id env.records || Bindings.mem id env.enums || Bindings.mem id builtin_typs
 
   let get_binding_loc env id =
     let find map =
@@ -778,6 +783,7 @@ end = struct
     else if Bindings.mem id env.variants then fst (Bindings.find id env.variants)
     else if Bindings.mem id env.records then fst (Bindings.find id env.records)
     else if Bindings.mem id env.enums then mk_typquant []
+    else if Bindings.mem id env.abstract_typs then fst (Bindings.find id env.abstract_typs)
     else if Bindings.mem id env.typ_synonyms then
       typ_error env (id_loc id) ("Cannot infer kind of type synonym " ^ string_of_id id)
     else typ_error env (id_loc id) ("Cannot infer kind of " ^ string_of_id id)
@@ -865,7 +871,7 @@ end = struct
     match typ_aux with
     | Typ_id id when bound_typ_id env id ->
         let typq = infer_kind env id in
-        if quant_kopts typq != [] then
+        if not (Util.list_empty (quant_kopts typq)) then
           typ_error env l ("Type constructor " ^ string_of_id id ^ " expected " ^ string_of_typquant typq)
         else ()
     | Typ_id id -> typ_error env l ("Undefined type " ^ string_of_id id)
@@ -910,6 +916,7 @@ end = struct
   and wf_nexp ?(exs = KidSet.empty) env (Nexp_aux (nexp_aux, l) as nexp) =
     wf_debug "nexp" string_of_nexp nexp exs;
     match nexp_aux with
+    | Nexp_id id when Bindings.mem id env.abstract_typs -> ()
     | Nexp_id id -> typ_error env l ("Undefined type synonym " ^ string_of_id id)
     | Nexp_var kid when KidSet.mem kid exs -> ()
     | Nexp_var kid -> begin
@@ -1115,7 +1122,7 @@ end = struct
       let v = KidSet.choose power_vars in
       let constrs = List.fold_left nc_and nc_true (get_constraints env) in
       begin
-        match Constraint.solve_all_smt l constrs v with
+        match Constraint.solve_all_smt l env.abstract_typs constrs v with
         | Some solutions ->
             typ_print
               ( lazy
@@ -1168,6 +1175,30 @@ end = struct
     with Type_error (env, err_l, err) ->
       decr depth;
       typ_raise env l (err_because (Err_other "Well-formedness check failed for type", err_l, err))
+
+  let add_abstract_typ id typq kind env =
+    if bound_typ_id env id then
+      typ_error env (id_loc id)
+        ("Cannot introduce abstract type " ^ string_of_id id ^ " as a type or synonym with that name already exists")
+    else (
+      let typq =
+        quant_map_items
+          (function
+            | QI_aux (QI_constraint nexp, aux) -> QI_aux (QI_constraint (expand_constraint_synonyms env nexp), aux)
+            | quant_item -> quant_item
+            )
+          typq
+      in
+      typ_print
+        ( lazy
+          (adding ^ "abstract type " ^ string_of_id id ^ ", " ^ string_of_typquant typq ^ " : " ^ string_of_kind kind)
+          );
+      { env with abstract_typs = Bindings.add id (typq, kind) env.abstract_typs }
+    )
+
+  let get_abstract_typs env = env.abstract_typs
+
+  let is_abstract_typ id env = Bindings.mem id env.abstract_typs
 
   let add_typ_synonym id typq arg env =
     if bound_typ_id env id then
@@ -1813,7 +1844,8 @@ and simp_typ_aux = function
 
 let prove_smt env (NC_aux (_, l) as nc) =
   let ncs = Env.get_constraints env in
-  match Constraint.call_smt l (List.fold_left nc_and (nc_not nc) ncs) with
+  let abstracts = Env.get_abstract_typs env in
+  match Constraint.call_smt l abstracts (List.fold_left nc_and (nc_not nc) ncs) with
   | Constraint.Unsat ->
       typ_debug (lazy "unsat");
       true
@@ -1825,7 +1857,7 @@ let prove_smt env (NC_aux (_, l) as nc) =
          constraints, even when such constraints are irrelevant *)
       let ncs' = List.concat (List.map constraint_conj ncs) in
       let ncs' = List.filter (fun nc -> KidSet.is_empty (constraint_power_variables nc)) ncs' in
-      match Constraint.call_smt l (List.fold_left nc_and (nc_not nc) ncs') with
+      match Constraint.call_smt l abstracts (List.fold_left nc_and (nc_not nc) ncs') with
       | Constraint.Unsat ->
           typ_debug (lazy "unsat");
           true
@@ -1848,8 +1880,9 @@ let solve_unique env (Nexp_aux (_, l) as nexp) =
       let env = Env.add_typ_var l (mk_kopt K_int (mk_kid "solve#")) env in
       let vars = Env.get_typ_vars env in
       let _vars = KBindings.filter (fun _ k -> match k with K_int | K_bool -> true | _ -> false) vars in
+      let abstracts = Env.get_abstract_typs env in
       let constr = List.fold_left nc_and (nc_eq (nvar (mk_kid "solve#")) nexp) (Env.get_constraints env) in
-      Constraint.solve_unique_smt l constr (mk_kid "solve#")
+      Constraint.solve_unique_smt l abstracts constr (mk_kid "solve#")
 
 let debug_pos (file, line, _, _) = "(" ^ file ^ "/" ^ string_of_int line ^ ") "
 
@@ -2483,7 +2516,7 @@ let rec subtyp l env typ1 typ2 =
         KBindings.filter (fun _ k -> match k with K_int | K_bool -> true | _ -> false) (Env.get_typ_vars env)
       in
       begin
-        match Constraint.call_smt l (nc_eq nexp1 nexp2) with
+        match Constraint.call_smt l Bindings.empty (nc_eq nexp1 nexp2) with
         | Constraint.Sat ->
             let env = Env.add_constraint (nc_eq nexp1 nexp2) env in
             if prove __POS__ env nc2 then ()
@@ -2636,6 +2669,7 @@ let rec rewrite_sizeof' l env (Nexp_aux (aux, _) as nexp) =
       let exp1 = rewrite_sizeof' l env nexp1 in
       let exp2 = rewrite_sizeof' l env nexp2 in
       mk_exp (E_app (mk_id "emod_int", [exp1; exp2]))
+  | Nexp_id id when Env.is_abstract_typ id env -> mk_exp (E_sizeof nexp)
   | Nexp_app _ | Nexp_id _ -> typ_error env l ("Cannot re-write sizeof(" ^ string_of_nexp nexp ^ ")")
 
 let rewrite_sizeof l env nexp =
@@ -3101,6 +3135,7 @@ let strip_val_spec vs = map_valspec_annot (fun (l, tannot) -> (l, untyped_annot 
 let strip_register r = map_register_annot (fun (l, tannot) -> (l, untyped_annot tannot)) r
 let strip_typedef td = map_typedef_annot (fun (l, tannot) -> (l, untyped_annot tannot)) td
 let strip_def def = map_def_annot (fun (l, tannot) -> (l, untyped_annot tannot)) def
+let strip_idef idef = map_idef_annot (fun (l, tannot) -> (l, untyped_annot tannot)) idef
 let strip_ast ast = map_ast_annot (fun (l, tannot) -> (l, untyped_annot tannot)) ast
 
 (* A L-expression can either be declaring new variables, or updating existing variables, but never a mix of the two *)
@@ -4424,7 +4459,11 @@ and infer_exp env (E_aux (exp_aux, (l, uannot)) as exp) =
         )
     end
   | E_lit lit -> annot_exp (E_lit lit) (infer_lit env lit)
-  | E_sizeof nexp -> irule infer_exp env (rewrite_sizeof l env (Env.expand_nexp_synonyms env nexp))
+  | E_sizeof nexp -> begin
+      match nexp with
+      | Nexp_aux (Nexp_id id, _) when Env.is_abstract_typ id env -> annot_exp (E_sizeof nexp) (atom_typ nexp)
+      | _ -> irule infer_exp env (rewrite_sizeof l env (Env.expand_nexp_synonyms env nexp))
+    end
   | E_constraint nc ->
       Env.wf_constraint env nc;
       crule check_exp env (rewrite_nc env (Env.expand_constraint_synonyms env nc)) (atom_bool_typ nc)
@@ -5873,11 +5912,29 @@ and check_defs : Env.t -> uannot def list -> tannot def list * Env.t =
   let total = List.length defs in
   check_defs_progress 1 total env defs
 
-let check : Env.t -> uannot ast -> tannot ast * Env.t =
- fun env ast ->
+let check_idef env (IDEF_aux (aux, def_annot)) =
+  match aux with
+  | IDEF_def aux ->
+      let _, env = check_def env (DEF_aux (aux, def_annot)) in
+      env
+  | IDEF_type (id, typq, kind) -> Env.add_abstract_typ id typq kind env
+  | IDEF_constraint nc -> Env.add_constraint ~reason:(def_annot.loc, "global constraint") nc env
+  | _ -> typ_error env def_annot.loc "Unimplemented module construct"
+
+let rec check_idefs_progress n total env = function
+  | [] -> env
+  | idef :: idefs ->
+      Util.progress "Type check " (string_of_int n ^ "/" ^ string_of_int total) n total;
+      check_idefs_progress (n + 1) total (check_idef env idef) idefs
+
+let check env ast =
   let total = List.length ast.defs in
   let defs, env = check_defs_progress 1 total env ast.defs in
   ({ ast with defs }, env)
+
+let check_interface env sdefs =
+  let total = List.length sdefs in
+  check_idefs_progress 1 total env sdefs
 
 let rec check_with_envs : Env.t -> uannot def list -> (tannot def list * Env.t) list =
  fun env defs ->

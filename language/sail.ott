@@ -777,6 +777,20 @@ def :: 'DEF_' ::=
   | $ string1 string2 l                                :: :: pragma
     {{ com compiler directive }}
 
+idef :: 'IDEF_' ::=
+  {{ com top-level definition in interface }}
+  {{ aux _ def_annot }} {{ auxparam 'a }}
+  | def_aux                 :: :: def
+    {{ com shared definition that also appears in non-interface }}
+  | let pat                 :: :: let
+    {{ com abstract let binding }}
+  | type id typquant : kind :: :: type
+    {{ com abstract type }}
+  | constraint n_constraint :: :: constraint
+    {{ com top-level constraint }}
+  | val id                  :: :: val
+    {{ com val-spec in interface without type }}
+
 terminals :: '' ::=
   | **                                  :: :: starstar
     {{ tex \ensuremath{\mathop{\mathord{*}\mathord{*} } } }}

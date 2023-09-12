@@ -226,6 +226,7 @@ let warn_extern_effect l =
 %token Undefined Union Newtype With Val Outcome Constraint Throw Try Catch Exit Bitfield Constant
 %token Barr Depend Rreg Wreg Rmem Wmem Wmv Eamem Exmem Undef Unspec Nondet Escape
 %token Repeat Until While Do Mutual Var Ref Configuration TerminationMeasure Instantiation Impl
+%token Module Implements Import Parameter
 %token InternalPLet InternalReturn InternalAssume
 %token Forwards Backwards
 
@@ -260,6 +261,7 @@ let warn_extern_effect l =
 %token <Parse_ast.fixity_token> Fixity
 
 %start file
+%start interface_file
 %start typschm_eof
 %start typ_eof
 %start exp_eof
@@ -269,6 +271,7 @@ let warn_extern_effect l =
 %type <Parse_ast.exp> exp_eof
 %type <Parse_ast.def> def_eof
 %type <Parse_ast.def list> file
+%type <Parse_ast.idef list> interface_file
 
 %%
 
@@ -363,6 +366,18 @@ id_list:
 kid:
   | TyVar
     { mk_kid $1 $startpos $endpos }
+
+mod_namespace:
+  | Id
+    { [$1] }
+  | mod_namespace Dot Id
+    { $3 :: $1 }
+
+mod_id:
+  | Id
+    { Mod_id_aux (Mod_id ([], $1), loc $startpos $endpos) }
+  | mod_namespace Dot Id
+    { Mod_id_aux (Mod_id (List.rev $1, $3), loc $startpos $endpos) }
 
 num_list:
   | Num
@@ -1595,6 +1610,26 @@ overload_def:
   | Overload id Eq enum_bar
     { ($2, List.map fst $4) }
 
+mod_exp:
+  | mod_id
+    { ME_aux (ME_id $1, loc $startpos $endpos) }
+  | mod_id Lparen separated_nonempty_list(Comma, mod_arg) Rparen
+    { ME_aux (ME_app ($1, $3), loc $startpos $endpos) } 
+
+mod_arg:
+  | mod_id Eq mod_exp
+    { ($1, $3) }
+  | mod_id
+    { ($1, ME_aux (ME_id $1, loc $startpos $endpos)) }
+
+import_def:
+  | Import mod_exp
+    { Import_aux (Import $2, loc $startpos $endpos) }
+
+parameter_def:
+  | Parameter mod_id Colon mod_id
+    { Parameter_aux (Parameter ($2, $4), loc $startpos $endpos) }
+
 def_aux:
   | fun_def
     { DEF_fundef $1 }
@@ -1632,6 +1667,16 @@ def_aux:
     { DEF_measure ($2, $3, $5) }
   | TerminationMeasure id loop_measures
     { DEF_loop_measures ($2,$3) }
+  | import_def
+    { DEF_import $1 }
+  | parameter_def
+    { DEF_parameter $1 }
+  | Implements mod_id
+    { DEF_implements $2 }
+  | Module mod_id Lcurly defs_list Rcurly
+    { DEF_module ($2, $4) }
+  | Module Typedef mod_id Lcurly idefs_list Rcurly
+    { DEF_interface ($3, $5) }
 
 def:
   | attr = Attribute; def = def
@@ -1651,8 +1696,42 @@ def_eof:
   | def Eof
     { $1 }
 
+idef_aux:
+  | def_aux
+    { IDEF_def $1 }
+  | Let_ pat
+    { IDEF_let $2 }
+  | Typedef id Colon kind
+    { IDEF_type ($2, mk_typqn, $4) }
+  | Typedef id typaram Colon kind
+    { IDEF_type ($2, $3, $5) }
+  | Constraint typ
+    { IDEF_constraint $2 }
+  | Val id
+    { IDEF_val $2 }
+
+idef:
+  | attr = Attribute; idef = idef
+    { IDEF_aux (IDEF_attribute (fst attr, snd attr, idef), loc $startpos(attr) $endpos(attr)) }
+  | doc = Doc; idef = idef
+    { IDEF_aux (IDEF_doc (doc, idef), loc $startpos(doc) $endpos(doc)) }
+  | d = idef_aux
+    { IDEF_aux (d, loc $startpos(d) $endpos(d)) }
+
+idefs_list:
+  | idef
+    { [$1] }
+  | idef idefs_list
+    { $1 :: $2 }
+
 file:
   | defs_list Eof
+    { $1 }
+  | Eof
+    { [] }
+
+interface_file:
+  | idefs_list Eof
     { $1 }
   | Eof
     { [] }

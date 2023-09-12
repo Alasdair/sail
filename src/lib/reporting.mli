@@ -94,6 +94,8 @@ val loc_file : Parse_ast.l -> string option
 (** Reduce a location to a pair of positions if possible *)
 val simp_loc : Ast.l -> (Lexing.position * Lexing.position) option
 
+val shrink_loc : string -> Parse_ast.l -> Parse_ast.l
+
 (** [short_loc_to_string] prints the location as a single line in a simple format *)
 val short_loc_to_string : Parse_ast.l -> string
 
