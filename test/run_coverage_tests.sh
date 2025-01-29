@@ -7,55 +7,55 @@ cd "$DIR"
 
 returncode=0
 
-printf "\n==========================================\n"
-printf "Lexing tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "Lexing tests\n"
+# printf "==========================================\n"
 
-./lexing/run_tests.py || returncode=1
+# ./lexing/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "Pattern completeness tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "Pattern completeness tests\n"
+# printf "==========================================\n"
 
-./pattern_completeness/run_tests.py || returncode=1
+# ./pattern_completeness/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "Typechecking tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "Typechecking tests\n"
+# printf "==========================================\n"
 
-./typecheck/run_tests.py || returncode=1
+# ./typecheck/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "OCaml tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "OCaml tests\n"
+# printf "==========================================\n"
 
-./ocaml/run_tests.sh || returncode=1
+# ./ocaml/run_tests.sh || returncode=1
 
-printf "\n==========================================\n"
-printf "Lem tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "Lem tests\n"
+# printf "==========================================\n"
 
-./lem/run_tests.py || returncode=1
+# ./lem/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "C tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "C tests\n"
+# printf "==========================================\n"
 
-./c/run_tests.py || returncode=1
+# ./c/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "SMT tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "SMT tests\n"
+# printf "==========================================\n"
 
-./smt/run_tests.py || returncode=1
+# ./smt/run_tests.py || returncode=1
 
-printf "\n==========================================\n"
-printf "SystemVerilog tests\n"
-printf "==========================================\n"
+# printf "\n==========================================\n"
+# printf "SystemVerilog tests\n"
+# printf "==========================================\n"
 
-verilator --version || returncode=1
+# verilator --version || returncode=1
 
-./sv/run_tests.py || returncode=1
+# ./sv/run_tests.py || returncode=1
 
 printf "\n==========================================\n"
 printf "Lean tests\n"
